@@ -48,43 +48,102 @@ Automated Compliance Report (Multi-Agent System)
 
 ---
 
-## 🏗️ System Architecture
+## 🏗️ System Architecture - Deep Integration
+
+**This is NOT two separate projects connected by APIs.** The integration occurs at the data and business logic level, creating a unified system where transaction processing and document intelligence work together seamlessly.
+
+### Integration Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Data Ingestion Layer                      │
-│  • CSV/JSON/Fixed-width transaction files                       │
-│  • PDF regulatory documents                                     │
-│  • Customer communication archives                              │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-         ┌─────────────────┴─────────────────┐
-         │                                    │
-┌────────▼──────────┐              ┌─────────▼──────────┐
-│  Transaction DB   │              │  Document Store    │
-│  (PostgreSQL)     │              │  (Vector DB)       │
-│  • 2.2M+ records  │              │  • RAG system      │
-│  • Indexed        │              │  • Embeddings      │
-└────────┬──────────┘              └─────────┬──────────┘
-         │                                    │
-         └─────────────────┬──────────────────┘
-                           │
-              ┌────────────▼───────────────┐
-              │   Analytics Engine         │
-              ├────────────────────────────┤
-              │ • Scala Rule Engine        │
-              │ • PyTorch ML Models        │
-              │ • LangGraph Agents         │
-              │ • Multi-LLM Reasoning      │
-              └────────────┬───────────────┘
-                           │
-              ┌────────────▼───────────────┐
-              │   API & Dashboard          │
-              │ • FastAPI endpoints        │
-              │ • Streamlit UI             │
-              │ • Real-time monitoring     │
-              └────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│                        UNIFIED DATA LAYER                             │
+│                        PostgreSQL Database                            │
+├──────────────────┬─────────────────────┬──────────────────────────────┤
+│  transactions    │  customer_profiles  │  transaction_alerts          │
+│  (Java writes)   │  (LLM writes)       │  (Python writes)             │
+│  (Python reads)  │  (Scala reads)      │  (Java reads)                │
+├──────────────────┼─────────────────────┼──────────────────────────────┤
+│  document_evidence                     │  compliance_reports          │
+│  (LLM/RAG writes, All systems read)    │  (LLM generates)             │
+└────────────────────────────────────────┴──────────────────────────────┘
+                                 ▲
+                                 │ Bidirectional Data Flow
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PROCESSING LAYER                                 │
+├──────────────────────────────┬──────────────────────────────────────┤
+│   Transaction Engine         │   Intelligence Engine                │
+│   (Java/Scala)               │   (Python/LLM)                       │
+│                              │                                      │
+│  • ETL Pipeline              │  • Document Extraction               │
+│    CSV/JSON → PostgreSQL     │    KYC Docs → customer_profiles     │
+│                              │                                      │
+│  • Rule-Based Detection      │  • RAG Document Search               │
+│    Reads customer_profiles   │    Links evidence to transactions   │
+│                              │                                      │
+│  • Statistical Analysis      │  • Multi-Agent Workflows             │
+│    Writes to alerts table    │    Combines DB + Docs → Reports     │
+└──────────────────────────────┴──────────────────────────────────────┘
+                                 ▲
+                                 │ Unified Business Logic
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    CORE INTEGRATION MODULE                          │
+│            core/unified_financial_intelligence.py                   │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Real-World Workflows (All require BOTH systems):                  │
+│                                                                     │
+│  1. Customer Onboarding:                                            │
+│     KYC Document → LLM Extraction → customer_profiles Table →      │
+│     Scala Rule Engine uses profile for transaction validation      │
+│                                                                     │
+│  2. Transaction Monitoring:                                         │
+│     PostgreSQL Stats → Python Analyzer → RAG Document Search →     │
+│     Generate Alert with Evidence → Java Dashboard Display          │
+│                                                                     │
+│  3. Compliance Reporting:                                           │
+│     DB Query (suspicious transactions) + Document Analysis +        │
+│     LLM Reasoning → SAR Report → compliance_reports Table           │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
+
+### Key Integration Points
+
+| Component | Java/Scala Contribution | Python/LLM Contribution | Shared Data |
+|-----------|------------------------|------------------------|-------------|
+| **Customer Profiles** | Rule engine reads expected transaction patterns | LLM extracts from KYC documents | `customer_profiles` table |
+| **Transaction Alerts** | Statistical anomaly detection | Document evidence retrieval | `transaction_alerts` table |
+| **Fraud Investigation** | Transaction history aggregation | Multi-agent reasoning workflow | `document_evidence` table |
+| **Compliance Reports** | SQL queries for suspicious activity | LLM narrative generation | `compliance_reports` table |
+
+**Why This Integration Matters:**
+- ✅ **Single Source of Truth**: All systems share PostgreSQL database
+- ✅ **Bidirectional**: Each system both produces and consumes shared data
+- ✅ **Real-Time**: Transaction validation uses LLM-extracted customer profiles immediately
+- ✅ **Collaborative**: Neither system can complete business workflows independently
+- ✅ **Production-Ready**: Actual code running end-to-end scenarios (see `demo_unified_system.py`)
+
+### Data Flow Example: Suspicious Transaction Handling
+
+```
+1. Java ETL loads transaction → PostgreSQL transactions table
+                                       ↓
+2. Python monitor detects amount exceeds customer_profiles.expected_max_amount
+                                       ↓
+3. RAG system searches documents for context (contracts, emails, KYC)
+                                       ↓
+4. LLM analyzes evidence + transaction patterns
+                                       ↓
+5. Alert written to transaction_alerts table (with document evidence links)
+                                       ↓
+6. Scala dashboard reads alert, Java service displays to analyst
+                                       ↓
+7. Analyst action triggers compliance_reports generation (LLM + DB queries)
+```
+
+**Every step requires data from both systems working together.**
 
 ---
 
