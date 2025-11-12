@@ -1,0 +1,422 @@
+[
+    {
+        "txnId": "JSON-TX-001",
+        "accountId": "ACC20001",
+        "timestamp": "2024-11-01T08:30:00Z",
+        "transactionAmount": {
+            "value": 156.75,
+            "currencyCode": "USD"
+        },
+        "merchant": {
+            "name": "Stripe Payment Gateway",
+            "category": "ONLINE_PAYMENT",
+            "mcc": "6011"
+        },
+        "cardInfo": {
+            "last4": "3421",
+            "type": "VISA"
+        },
+        "location": {
+            "country": "US",
+            "city": "San Francisco",
+            "coordinates": {
+                "lat": 37.7749,
+                "lon": -122.4194
+            }
+        },
+        "channel": "ONLINE",
+        "status": "COMPLETED"
+    },
+    {
+        "txnId": "JSON-TX-002",
+        "accountId": "ACC20002",
+        "timestamp": "2024-11-01T10:15:30Z",
+        "transactionAmount": {
+            "value": 2450.00,
+            "currencyCode": "USD"
+        },
+        "merchant": {
+            "name": "PayPal Inc",
+            "category": "PAYMENT_SERVICE",
+            "mcc": "6051"
+        },
+        "cardInfo": {
+            "last4": "7890",
+            "type": "MASTERCARD"
+        },
+        "location": {
+            "country": "US",
+            "city": "Los Angeles",
+            "coordinates": {
+                "lat": 34.0522,
+                "lon": -118.2437
+            }
+        },
+        "channel": "MOBILE_APP",
+        "status": "COMPLETED"
+    },
+    {
+        "txnId": "JSON-TX-003",
+        "accountId": "ACC20001",
+        "timestamp": "2024-11-01T12:45:15Z",
+        "transactionAmount": {
+            "value": 89.99,
+            "currencyCode": "USD"
+        },
+        "merchant": {
+            "name": "Netflix",
+            "category": "ENTERTAINMENT",
+            "mcc": "7832"
+        },
+        "cardInfo": {
+            "last4": "3421",
+            "type": "VISA"
+        },
+        "location": {
+            "country": "US",
+            "city": "San Francisco",
+            "coordinates": {
+                "lat": 37.7749,
+                "lon": -122.4194
+            }
+        },
+        "channel": "RECURRING",
+        "status": "COMPLETED"
+    },
+    {
+        "txnId": "JSON-TX-004",
+        "accountId": "ACC20003",
+        "timestamp": "2024-11-01T14:20:45Z",
+        "transactionAmount": {
+            "value": 3750.50,
+            "currencyCode": "USD"
+        },
+        "merchant": {
+            "name": "Booking.com",
+            "category": "TRAVEL",
+            "mcc": "7011"
+        },
+        "cardInfo": {
+            "last4": "5678",
+            "type": "AMEX"
+        },
+        "location": {
+            "country": "US",
+            "city": "New York",
+            "coordinates": {
+                "lat": 40.7128,
+                "lon": -74.0060
+            }
+        },
+        "channel": "ONLINE",
+        "status": "COMPLETED"
+    },
+    {
+        "txnId": "JSON-TX-005",
+        "accountId": "ACC20004",
+        "timestamp": "2024-11-01T16:10:20Z",
+        "transactionAmount": {
+            "value": 125.00,
+            "currencyCode": "USD"
+        },
+        "merchant": {
+            "name": "Spotify Premium",
+            "category": "ENTERTAINMENT",
+            "mcc": "7832"
+        },
+        "cardInfo": {
+            "last4": "9012",
+            "type": "VISA"
+        },
+        "location": {
+            "country": "US",
+            "city": "Seattle",
+            "coordinates": {
+                "lat": 47.6062,
+                "lon": -122.3321
+            }
+        },
+        "channel": "RECURRING",
+        "status": "COMPLETED"
+    },
+    {
+        "txnId": "JSON-TX-006",
+        "accountId": "ACC20002",
+        "timestamp": "2024-11-02T09:30:00Z",
+        "transactionAmount": {
+            "value": 5600.00,
+            "currencyCode": "USD"
+        },
+        "merchant": {
+            "name": "Expedia",
+            "category": "TRAVEL",
+            "mcc": "7011"
+        },
+        "cardInfo": {
+            "last4": "7890",
+            "type": "MASTERCARD"
+        },
+        "location": {
+            "country": "US",
+            "city": "Chicago",
+            "coordinates": {
+                "lat": 41.8781,
+                "lon": -87.6298
+            }
+        },
+        "channel": "ONLINE",
+        "status": "COMPLETED"
+    },
+    {
+        "txnId": "JSON-TX-007",
+        "accountId": "ACC20005",
+        "timestamp": "2024-11-02T11:15:45Z",
+        "transactionAmount": {
+            "value": 299.99,
+            "currencyCode": "USD"
+        },
+        "merchant": {
+            "name": "Adobe Creative Cloud",
+            "category": "SOFTWARE",
+            "mcc": "7372"
+        },
+        "cardInfo": {
+            "last4": "2345",
+            "type": "VISA"
+        },
+        "location": {
+            "country": "US",
+            "city": "Austin",
+            "coordinates": {
+                "lat": 30.2672,
+                "lon": -97.7431
+            }
+        },
+        "channel": "RECURRING",
+        "status": "COMPLETED"
+    },
+    {
+        "txnId": "JSON-TX-008",
+        "accountId": "ACC20003",
+        "timestamp": "2024-11-02T13:40:30Z",
+        "transactionAmount": {
+            "value": 1890.00,
+            "currencyCode": "USD"
+        },
+        "merchant": {
+            "name": "Square Payment",
+            "category": "PAYMENT_PROCESSOR",
+            "mcc": "6011"
+        },
+        "cardInfo": {
+            "last4": "5678",
+            "type": "AMEX"
+        },
+        "location": {
+            "country": "US",
+            "city": "Boston",
+            "coordinates": {
+                "lat": 42.3601,
+                "lon": -71.0589
+            }
+        },
+        "channel": "MOBILE_APP",
+        "status": "COMPLETED"
+    },
+    {
+        "txnId": "JSON-TX-009",
+        "accountId": "ACC20006",
+        "timestamp": "2024-11-02T15:25:10Z",
+        "transactionAmount": {
+            "value": 450.75,
+            "currencyCode": "USD"
+        },
+        "merchant": {
+            "name": "Amazon Web Services",
+            "category": "CLOUD_SERVICES",
+            "mcc": "7372"
+        },
+        "cardInfo": {
+            "last4": "6789",
+            "type": "VISA"
+        },
+        "location": {
+            "country": "US",
+            "city": "Seattle",
+            "coordinates": {
+                "lat": 47.6062,
+                "lon": -122.3321
+            }
+        },
+        "channel": "RECURRING",
+        "status": "COMPLETED"
+    },
+    {
+        "txnId": "JSON-TX-010",
+        "accountId": "ACC20004",
+        "timestamp": "2024-11-02T17:50:00Z",
+        "transactionAmount": {
+            "value": 3200.00,
+            "currencyCode": "USD"
+        },
+        "merchant": {
+            "name": "Apple App Store",
+            "category": "DIGITAL_GOODS",
+            "mcc": "5732"
+        },
+        "cardInfo": {
+            "last4": "9012",
+            "type": "VISA"
+        },
+        "location": {
+            "country": "US",
+            "city": "Cupertino",
+            "coordinates": {
+                "lat": 37.3230,
+                "lon": -122.0322
+            }
+        },
+        "channel": "MOBILE_APP",
+        "status": "COMPLETED"
+    },
+    {
+        "txnId": "JSON-TX-011",
+        "accountId": "ACC20007",
+        "timestamp": "2024-11-03T08:20:15Z",
+        "transactionAmount": {
+            "value": 875.50,
+            "currencyCode": "USD"
+        },
+        "merchant": {
+            "name": "Salesforce",
+            "category": "SOFTWARE",
+            "mcc": "7372"
+        },
+        "cardInfo": {
+            "last4": "4321",
+            "type": "MASTERCARD"
+        },
+        "location": {
+            "country": "US",
+            "city": "San Francisco",
+            "coordinates": {
+                "lat": 37.7749,
+                "lon": -122.4194
+            }
+        },
+        "channel": "RECURRING",
+        "status": "COMPLETED"
+    },
+    {
+        "txnId": "JSON-TX-012",
+        "accountId": "ACC20001",
+        "timestamp": "2024-11-03T10:45:30Z",
+        "transactionAmount": {
+            "value": 67.99,
+            "currencyCode": "USD"
+        },
+        "merchant": {
+            "name": "DoorDash",
+            "category": "FOOD_DELIVERY",
+            "mcc": "5812"
+        },
+        "cardInfo": {
+            "last4": "3421",
+            "type": "VISA"
+        },
+        "location": {
+            "country": "US",
+            "city": "San Francisco",
+            "coordinates": {
+                "lat": 37.7749,
+                "lon": -122.4194
+            }
+        },
+        "channel": "MOBILE_APP",
+        "status": "COMPLETED"
+    },
+    {
+        "txnId": "JSON-TX-013",
+        "accountId": "ACC20008",
+        "timestamp": "2024-11-03T12:10:45Z",
+        "transactionAmount": {
+            "value": 15000.00,
+            "currencyCode": "USD"
+        },
+        "merchant": {
+            "name": "Google Cloud Platform",
+            "category": "CLOUD_SERVICES",
+            "mcc": "7372"
+        },
+        "cardInfo": {
+            "last4": "8765",
+            "type": "AMEX"
+        },
+        "location": {
+            "country": "US",
+            "city": "Mountain View",
+            "coordinates": {
+                "lat": 37.3861,
+                "lon": -122.0839
+            }
+        },
+        "channel": "RECURRING",
+        "status": "COMPLETED"
+    },
+    {
+        "txnId": "JSON-TX-014",
+        "accountId": "ACC20005",
+        "timestamp": "2024-11-03 14:35:20Z",
+        "transactionAmount": {
+            "value": 234.50,
+            "currencyCode": "USD"
+        },
+        "merchant": {
+            "name": "Uber Eats",
+            "category": "FOOD_DELIVERY",
+            "mcc": "5812"
+        },
+        "cardInfo": {
+            "last4": "2345",
+            "type": "VISA"
+        },
+        "location": {
+            "country": "US",
+            "city": "Austin",
+            "coordinates": {
+                "lat": 30.2672,
+                "lon": -97.7431
+            }
+        },
+        "channel": "MOBILE_APP",
+        "status": "COMPLETED"
+    },
+    {
+        "txnId": "JSON-TX-015",
+        "accountId": "ACC20009",
+        "timestamp": "2024-11-03T16:50:10Z",
+        "transactionAmount": {
+            "value": 9800.00,
+            "currencyCode": "USD"
+        },
+        "merchant": {
+            "name": "Microsoft Azure",
+            "category": "CLOUD_SERVICES",
+            "mcc": "7372"
+        },
+        "cardInfo": {
+            "last4": "1234",
+            "type": "VISA"
+        },
+        "location": {
+            "country": "US",
+            "city": "Redmond",
+            "coordinates": {
+                "lat": 47.6740,
+                "lon": -122.1215
+            }
+        },
+        "channel": "RECURRING",
+        "status": "COMPLETED"
+    }
+]

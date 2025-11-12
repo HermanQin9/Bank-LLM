@@ -1,0 +1,182 @@
+# Financial Intelligence & Compliance Platform
+# Unified Docker Compose configuration
+#
+# Services:
+#   - postgres: Transaction database (PostgreSQL 15)
+#   - java-service: Transaction ETL and Scala fraud detection
+#   - python-api: LLM services and ML models (FastAPI)
+#   - streamlit-ui: Investigation dashboard
+#
+# Author: Herman Qin
+# Date: November 2025
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database - stores 2.2M+ transactions
+  postgres:
+    image: postgres:15-alpine
+    container_name: financial-db
+    environment:
+      POSTGRES_DB: frauddb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./BankFraudTest/src/main/resources/db/migration:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d frauddb" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - financial-network
+    restart: unless-stopped
+
+  # Java Transaction Processing Service (ETL + Scala Fraud Detection)
+  java-service:
+    build:
+      context: ./BankFraudTest
+      dockerfile: Dockerfile
+    container_name: java-transaction-service
+    environment:
+      # Database connection
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: frauddb
+      DB_USER: postgres
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+
+      # HikariCP settings
+      HIKARI_MAX_POOL_SIZE: 20
+      HIKARI_MIN_IDLE: 10
+
+      # AWS settings (optional for S3 data lake)
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-}
+
+      # Java options
+      JAVA_OPTS: "-Xms512m -Xmx2g -XX:+UseG1GC"
+    ports:
+      - "8080:8080" # Java API endpoint
+    volumes:
+      - ./BankFraudTest/data:/app/data
+      - ./BankFraudTest/logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - financial-network
+    restart: unless-stopped
+
+  # Python LLM & ML Service (FastAPI)
+  python-api:
+    build:
+      context: ./LLM
+      dockerfile: Dockerfile
+    container_name: python-llm-service
+    environment:
+      # Database connection (for reading transactions)
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/frauddb
+
+      # LLM API Keys
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      HUGGINGFACE_API_KEY: ${HUGGINGFACE_API_KEY:-}
+
+      # LLM Models
+      GEMINI_MODEL: ${GEMINI_MODEL:-models/gemini-2.5-flash}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-qwen/qwen3-coder:free}
+
+      # RAG settings
+      VECTOR_STORE_TYPE: chromadb
+      EMBEDDING_MODEL: all-MiniLM-L6-v2
+      CHUNK_SIZE: 512
+
+      # Java service endpoint
+      JAVA_SERVICE_URL: http://java-service:8080
+
+      # Python settings
+      PYTHONUNBUFFERED: 1
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000" # FastAPI endpoint
+    volumes:
+      - ./LLM/data:/app/data
+      - ./LLM/logs:/app/logs
+      - ./ml-bridge:/app/ml-bridge
+      - model_cache:/root/.cache # Cache for transformers/models
+    depends_on:
+      - postgres
+      - java-service
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - financial-network
+    restart: unless-stopped
+    # GPU support (uncomment if GPU available)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+    # Streamlit Investigation Dashboard
+  streamlit-ui:
+    build:
+      context: ./LLM
+      dockerfile: Dockerfile
+      target: dashboard # Multi-stage build target
+    container_name: streamlit-dashboard
+    environment:
+      # API endpoints
+      PYTHON_API_URL: http://python-api:8000
+      JAVA_API_URL: http://java-service:8080
+
+      # Streamlit config
+      STREAMLIT_SERVER_PORT: 8501
+      STREAMLIT_SERVER_ADDRESS: 0.0.0.0
+      STREAMLIT_BROWSER_GATHER_USAGE_STATS: false
+    ports:
+      - "8501:8501" # Dashboard UI
+    volumes:
+      - ./LLM/app:/app/app
+      - ./LLM/data:/app/data
+    depends_on:
+      - python-api
+      - java-service
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8501/_stcore/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - financial-network
+    command: streamlit run app/dashboard.py
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    name: financial-db-data
+  model_cache:
+    name: ml-model-cache
+
+networks:
+  financial-network:
+    name: financial-platform-network
+    driver: bridge

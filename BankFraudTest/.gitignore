@@ -1,0 +1,59 @@
+# Java compiled files
+*.class
+*.jar
+*.war
+*.ear
+target/
+build/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# Maven
+.mvn/
+mvnw
+mvnw.cmd
+
+# Gradle
+.gradle/
+gradle/
+
+# Database
+*.db
+*.sqlite
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+*.properties
+!src/main/resources/application.properties.template
+
+# AWS credentials
+*.pem
+*.ppk
+aws-credentials.txt
+
+# Data files (for large datasets)
+data/raw/*.csv
+data/processed/*.csv
+!data/sample/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Python (if using Python scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
