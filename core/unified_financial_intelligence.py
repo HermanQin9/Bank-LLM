@@ -88,7 +88,7 @@ class DatabaseConnector:
         """Establish database connection."""
         if not self.conn or self.conn.closed:
             self.conn = psycopg2.connect(self.connection_string)
-            logger.info("✅ Connected to PostgreSQL database")
+            logger.info(" Connected to PostgreSQL database")
     
     def disconnect(self):
         """Close database connection."""
@@ -118,7 +118,7 @@ class DatabaseConnector:
         with self.conn.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(query, (customer_id, days))
             results = cursor.fetchall()
-            logger.info(f"📊 Retrieved {len(results)} transactions for customer {customer_id}")
+            logger.info(f" Retrieved {len(results)} transactions for customer {customer_id}")
             return [dict(row) for row in results]
     
     def get_customer_statistics(self, customer_id: str) -> Dict:
@@ -173,7 +173,7 @@ class DatabaseConnector:
                 profile.extracted_at
             ))
             self.conn.commit()
-            logger.info(f"💾 Saved customer profile for {profile.customer_id}")
+            logger.info(f" Saved customer profile for {profile.customer_id}")
 
 
 class DocumentIntelligenceEngine:
@@ -185,14 +185,14 @@ class DocumentIntelligenceEngine:
     def __init__(self):
         self.llm = UniversalLLMClient()
         self.rag = GeminiRAGPipeline(llm_provider="gemini")
-        logger.info("🤖 Document intelligence engine initialized")
+        logger.info(" Document intelligence engine initialized")
     
     async def extract_customer_profile_from_kyc(self, document_path: str, customer_id: str) -> CustomerProfile:
         """
         Extract customer business profile from KYC documents.
         This is REAL integration: documents → structured data → database → transaction validation
         """
-        logger.info(f"📄 Extracting customer profile from: {document_path}")
+        logger.info(f" Extracting customer profile from: {document_path}")
         
         # Read document
         try:
@@ -252,11 +252,11 @@ Return ONLY valid JSON, no explanation:
                 confidence_score=0.85  # In production: calculate from LLM response quality
             )
             
-            logger.info(f"✅ Extracted profile: {profile.business_type}, expected ${profile.expected_monthly_volume}/month")
+            logger.info(f" Extracted profile: {profile.business_type}, expected ${profile.expected_monthly_volume}/month")
             return profile
             
         except Exception as e:
-            logger.error(f"❌ Profile extraction failed: {e}")
+            logger.error(f" Profile extraction failed: {e}")
             # Return default profile
             return CustomerProfile(
                 customer_id=customer_id,
@@ -275,7 +275,7 @@ Return ONLY valid JSON, no explanation:
         Search document store for evidence related to an alert.
         REAL integration: transaction alert → document search → contextual evidence
         """
-        logger.info(f"🔍 Searching documents for evidence: {alert_type}")
+        logger.info(f" Searching documents for evidence: {alert_type}")
         
         try:
             # Semantic search in RAG system
@@ -291,7 +291,7 @@ Return ONLY valid JSON, no explanation:
             return evidence
             
         except Exception as e:
-            logger.warning(f"⚠️  Document search failed: {e}")
+            logger.warning(f"  Document search failed: {e}")
             return ["No supporting documents found"]
     
     async def generate_sar_report(self, customer_id: str, transactions: List[Dict], 
@@ -352,7 +352,7 @@ Format as professional regulatory document.
 """
         
         report = self.llm.generate(prompt, temperature=0.3, max_tokens=2000)
-        logger.info(f"✅ Generated {len(report)} character SAR report")
+        logger.info(f" Generated {len(report)} character SAR report")
         return report
 
 
@@ -371,7 +371,7 @@ class UnifiedFinancialIntelligence:
     def __init__(self, db_connection_string: str = None):
         self.db = DatabaseConnector(db_connection_string)
         self.doc_engine = DocumentIntelligenceEngine()
-        logger.info("🚀 Unified Financial Intelligence System initialized")
+        logger.info(" Unified Financial Intelligence System initialized")
     
     async def onboard_customer(self, customer_id: str, kyc_document_path: str) -> CustomerProfile:
         """
@@ -395,7 +395,7 @@ class UnifiedFinancialIntelligence:
         # Save to database
         self.db.save_customer_profile(profile)
         
-        logger.info(f"✅ Customer {customer_id} onboarded successfully")
+        logger.info(f" Customer {customer_id} onboarded successfully")
         logger.info(f"   Business: {profile.business_type}")
         logger.info(f"   Expected volume: ${profile.expected_monthly_volume:,.0f}/month")
         logger.info(f"   Transaction range: ${profile.expected_transaction_size[0]:,.0f} - ${profile.expected_transaction_size[1]:,.0f}")
@@ -417,7 +417,7 @@ class UnifiedFinancialIntelligence:
         amount = transaction['amount']
         
         logger.info(f"\n{'='*70}")
-        logger.info(f"🔍 MONITORING TRANSACTION: {transaction['transaction_id']}")
+        logger.info(f" MONITORING TRANSACTION: {transaction['transaction_id']}")
         logger.info(f"{'='*70}\n")
         
         # Get customer profile and statistics
@@ -425,7 +425,7 @@ class UnifiedFinancialIntelligence:
         stats = self.db.get_customer_statistics(customer_id)
         
         if not stats or stats.get('total_transactions', 0) == 0:
-            logger.warning(f"⚠️  No transaction history for customer {customer_id}")
+            logger.warning(f"  No transaction history for customer {customer_id}")
             return None
         
         # Detect anomalies (mimics Scala FraudAnalyzer logic)
@@ -462,14 +462,14 @@ class UnifiedFinancialIntelligence:
             )
             alert.supporting_evidence = evidence
             
-            logger.warning(f"⚠️  ALERT: {alert.alert_type} - Z-score: {z_score:.2f}")
+            logger.warning(f"  ALERT: {alert.alert_type} - Z-score: {z_score:.2f}")
             logger.info(f"   Transaction: ${amount:,.2f}")
             logger.info(f"   Customer avg: ${avg_amount:,.2f} ± ${std_amount:,.2f}")
             logger.info(f"   Evidence documents: {len(evidence)}")
             
             return alert
         
-        logger.info(f"✅ Transaction approved - within normal range")
+        logger.info(f" Transaction approved - within normal range")
         logger.info(f"   Amount: ${amount:,.2f} (Z-score: {z_score:.2f})")
         return None
     
@@ -484,7 +484,7 @@ class UnifiedFinancialIntelligence:
         4. LLM generates professional report combining all sources
         """
         logger.info(f"\n{'='*70}")
-        logger.info(f"📊 GENERATING COMPLIANCE REPORT: {customer_id}")
+        logger.info(f" GENERATING COMPLIANCE REPORT: {customer_id}")
         logger.info(f"{'='*70}\n")
         
         # Get transactions
@@ -501,13 +501,13 @@ class UnifiedFinancialIntelligence:
                 alerts.append(alert)
         
         if not alerts:
-            logger.info(f"✅ No suspicious activity detected")
+            logger.info(f" No suspicious activity detected")
             return f"Customer {customer_id}: No suspicious activity in last {days} days."
         
         # Generate SAR report
         report = await self.doc_engine.generate_sar_report(customer_id, transactions, alerts)
         
-        logger.info(f"✅ Compliance report generated")
+        logger.info(f" Compliance report generated")
         logger.info(f"   Suspicious transactions: {len([a for a in alerts if a.severity in ['HIGH', 'CRITICAL']])}")
         logger.info(f"   Total alerts: {len(alerts)}")
         
@@ -550,7 +550,7 @@ async def main():
     profile = await system.onboard_customer("CUST-12345", kyc_doc_path)
     
     # Scenario 2: Real-time Transaction Monitoring
-    print("\n\n🔍 SCENARIO 2: Real-time Transaction Monitoring")
+    print("\n\n SCENARIO 2: Real-time Transaction Monitoring")
     print("-" * 70)
     
     # Simulate normal transaction
@@ -564,7 +564,7 @@ async def main():
         'location': 'USA'
     }
     
-    print("\n✓ Testing normal transaction...")
+    print("\n Testing normal transaction...")
     alert1 = await system.monitor_transaction(normal_tx)
     
     # Simulate anomalous transaction
@@ -578,11 +578,11 @@ async def main():
         'location': 'Cayman Islands'
     }
     
-    print("\n✓ Testing anomalous transaction...")
+    print("\n Testing anomalous transaction...")
     alert2 = await system.monitor_transaction(anomalous_tx)
     
     if alert2:
-        print("\n⚠️  ALERT DETAILS:")
+        print("\n  ALERT DETAILS:")
         print(json.dumps(asdict(alert2), indent=2, default=str))
     
     # Scenario 3: Compliance Reporting
@@ -597,7 +597,7 @@ async def main():
     system.db.disconnect()
     
     print("\n" + "="*70)
-    print("✅ DEMO COMPLETE")
+    print(" DEMO COMPLETE")
     print("="*70)
 
 

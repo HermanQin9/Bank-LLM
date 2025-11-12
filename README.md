@@ -11,7 +11,7 @@
 
 ---
 
-## 📖 Project Overview
+## Project Overview
 
 This platform addresses a critical challenge in modern banking: **efficiently processing massive transaction volumes while maintaining regulatory compliance through document understanding**.
 
@@ -48,7 +48,7 @@ Automated Compliance Report (Multi-Agent System)
 
 ---
 
-## 🏗️ System Architecture - Deep Integration
+## System Architecture - Deep Integration
 
 **This is NOT two separate projects connected by APIs.** The integration occurs at the data and business logic level, creating a unified system where transaction processing and document intelligence work together seamlessly.
 
@@ -119,11 +119,11 @@ Automated Compliance Report (Multi-Agent System)
 | **Compliance Reports** | SQL queries for suspicious activity | LLM narrative generation | `compliance_reports` table |
 
 **Why This Integration Matters:**
-- ✅ **Single Source of Truth**: All systems share PostgreSQL database
-- ✅ **Bidirectional**: Each system both produces and consumes shared data
-- ✅ **Real-Time**: Transaction validation uses LLM-extracted customer profiles immediately
-- ✅ **Collaborative**: Neither system can complete business workflows independently
-- ✅ **Production-Ready**: Actual code running end-to-end scenarios (see `demo_unified_system.py`)
+- Single Source of Truth: All systems share PostgreSQL database
+- Bidirectional: Each system both produces and consumes shared data
+- Real-Time: Transaction validation uses LLM-extracted customer profiles immediately
+- Collaborative: Neither system can complete business workflows independently
+- Production-Ready: Actual code running end-to-end scenarios (see `demo_unified_system.py`)
 
 ### Data Flow Example: Suspicious Transaction Handling
 
@@ -147,7 +147,7 @@ Automated Compliance Report (Multi-Agent System)
 
 ---
 
-## ✨ Key Features
+## Key Features
 
 ### 1. **Transaction Processing Pipeline** (Java/Scala)
 - **Multi-format ETL**: Process CSV, JSON, fixed-width transaction files
@@ -212,7 +212,7 @@ Automated Compliance Report (Multi-Agent System)
 
 ---
 
-## 📊 Technical Capabilities Demonstrated
+## Technical Capabilities Demonstrated
 
 | Capability | Technology | Evidence |
 |-----------|------------|----------|
@@ -229,7 +229,7 @@ Automated Compliance Report (Multi-Agent System)
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - **Java**: 21 or higher
@@ -295,7 +295,7 @@ streamlit run app/dashboard.py  # UI on port 8501
 
 ---
 
-## 💡 Usage Examples
+## Usage Examples
 
 ### 1. Process Transaction Batch
 ```bash
@@ -394,7 +394,7 @@ for row in cursor.fetchall():
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 BankFraudTest-LLM/
@@ -464,7 +464,7 @@ BankFraudTest-LLM/
 
 ---
 
-## 🔬 Technical Deep Dive
+## Technical Deep Dive
 
 ### Transaction Processing (Java/Scala)
 - **HikariCP**: 20-connection pool, optimized for throughput
@@ -510,7 +510,7 @@ BankFraudTest-LLM/
 
 ---
 
-## 📈 Performance Benchmarks
+## Performance Benchmarks
 
 **Transaction Processing**:
 - CSV ingestion: 10,000 records/sec
@@ -537,7 +537,7 @@ BankFraudTest-LLM/
 
 ---
 
-## 🧪 Testing
+## Testing
 
 ```bash
 # Java tests
@@ -561,7 +561,7 @@ pytest tests/test_system.py -v
 
 ---
 
-## 🚢 Deployment
+## Deployment
 
 ### Docker Compose (Recommended)
 ```bash
@@ -600,7 +600,7 @@ streamlit run app/dashboard.py --server.port 8501
 
 ---
 
-## 🛠️ Development Workflow
+## Development Workflow
 
 ### Setup Development Environment
 ```bash
@@ -634,7 +634,7 @@ black src/ tests/ --check
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 - **BankFraudTest**: See `BankFraudTest/docs/`
   - [TESTING.md](BankFraudTest/docs/TESTING.md) - Test strategies
@@ -647,7 +647,7 @@ black src/ tests/ --check
 
 ---
 
-## 🎯 Real-World Applications
+## Real-World Applications
 
 This integrated system addresses actual challenges in financial institutions:
 
@@ -678,7 +678,7 @@ This integrated system addresses actual challenges in financial institutions:
 
 ---
 
-## 🔮 Future Enhancements
+## Future Enhancements
 
 - [ ] **Real-time Streaming**: Apache Kafka for transaction streams
 - [ ] **Advanced ML**: Transformer models for sequential transaction analysis
@@ -691,13 +691,13 @@ This integrated system addresses actual challenges in financial institutions:
 
 ---
 
-## 📝 License
+## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-## 👤 Author
+## Author
 
 **Herman Qin**
 - GitHub: [@HermanQin9](https://github.com/HermanQin9)
@@ -706,7 +706,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - Real financial datasets from Kaggle and UCI ML Repository
 - Open-source LLM providers (Google Gemini, Groq, Meta Llama)
@@ -715,7 +715,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-## ⭐ Star This Project
+## Star This Project
 
 If you find this project valuable for learning about:
 - Large-scale data engineering
@@ -727,4 +727,4 @@ Please consider giving it a star on GitHub!
 
 ---
 
-**Built with ❤️ for the intersection of data engineering, machine learning, and financial technology.**
+**Built with dedication for the intersection of data engineering, machine learning, and financial technology.**
