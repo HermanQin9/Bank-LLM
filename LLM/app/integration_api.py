@@ -15,7 +15,7 @@ from typing import Dict, List, Optional
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -43,21 +43,41 @@ DB_CONFIG = {
 
 # Request models
 class TransactionAnalysisRequest(BaseModel):
-    transaction_id: str
-    customer_id: str
+    model_config = ConfigDict(populate_by_name=True)
+
+    transaction_id: str = Field(
+        ..., validation_alias=AliasChoices("transaction_id", "transactionId")
+    )
+    customer_id: str = Field(
+        ..., validation_alias=AliasChoices("customer_id", "customerId")
+    )
     amount: float
-    merchant_name: str
+    merchant_name: str = Field(
+        ..., validation_alias=AliasChoices("merchant_name", "merchantName")
+    )
 
 
 class DocumentSearchRequest(BaseModel):
-    customer_id: str
+    model_config = ConfigDict(populate_by_name=True)
+
+    customer_id: str = Field(
+        ..., validation_alias=AliasChoices("customer_id", "customerId")
+    )
     query: str
-    top_k: int = 5
+    top_k: int = Field(
+        5, validation_alias=AliasChoices("top_k", "topK")
+    )
 
 
 class ReportGenerationRequest(BaseModel):
-    customer_id: str
-    report_type: str  # SAR, CTR, CDD
+    model_config = ConfigDict(populate_by_name=True)
+
+    customer_id: str = Field(
+        ..., validation_alias=AliasChoices("customer_id", "customerId")
+    )
+    report_type: str = Field(
+        ..., validation_alias=AliasChoices("report_type", "reportType")
+    )  # SAR, CTR, CDD
 
 
 def get_db_connection():
