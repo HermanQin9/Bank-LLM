@@ -26,7 +26,8 @@ from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
 import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor, Json
+from psycopg2.extensions import connection as PGConnection
 import numpy as np
 
 # Add paths
@@ -76,19 +77,20 @@ class DatabaseConnector:
     Uses connection pooling for production performance.
     """
     
-    def __init__(self, connection_string: str = None):
+    def __init__(self, connection_string: Optional[str] = None):
         self.connection_string = connection_string or os.getenv(
             'DATABASE_URL',
             'postgresql://postgres:postgres123@localhost:5432/frauddb'
         )
-        self.conn = None
+        self.conn: Optional[PGConnection] = None
         logger.info("Database connector initialized")
     
-    def connect(self):
-        """Establish database connection."""
+    def connect(self) -> PGConnection:
+        """Establish database connection and return connection handle."""
         if not self.conn or self.conn.closed:
             self.conn = psycopg2.connect(self.connection_string)
             logger.info(" Connected to PostgreSQL database")
+        return self.conn
     
     def disconnect(self):
         """Close database connection."""
@@ -98,7 +100,7 @@ class DatabaseConnector:
     
     def get_customer_transactions(self, customer_id: str, days: int = 30) -> List[Dict]:
         """Retrieve recent transactions for a customer."""
-        self.connect()
+        conn = self.connect()
         query = """
             SELECT 
                 transaction_id,
@@ -115,7 +117,7 @@ class DatabaseConnector:
             ORDER BY transaction_date DESC
         """
         
-        with self.conn.cursor(cursor_factory=RealDictCursor) as cursor:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(query, (customer_id, days))
             results = cursor.fetchall()
             logger.info(f" Retrieved {len(results)} transactions for customer {customer_id}")
@@ -123,7 +125,7 @@ class DatabaseConnector:
     
     def get_customer_statistics(self, customer_id: str) -> Dict:
         """Calculate customer transaction statistics (mimics Scala TransactionStatistics)."""
-        self.connect()
+        conn = self.connect()
         query = """
             SELECT 
                 COUNT(*) as total_transactions,
@@ -139,14 +141,57 @@ class DatabaseConnector:
             WHERE customer_id = %s
         """
         
-        with self.conn.cursor(cursor_factory=RealDictCursor) as cursor:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(query, (customer_id,))
             result = cursor.fetchone()
             return dict(result) if result else {}
+
+    def get_customer_profile(self, customer_id: str) -> Optional[CustomerProfile]:
+        """Fetch previously extracted customer profile for shared feature store."""
+        conn = self.connect()
+        query = """
+            SELECT 
+                customer_id,
+                business_type,
+                expected_monthly_volume,
+                expected_min_amount,
+                expected_max_amount,
+                geographic_scope,
+                risk_indicators,
+                kyc_document_source,
+                confidence_score,
+                COALESCE(updated_at, created_at) AS profile_timestamp
+            FROM customer_profiles
+            WHERE customer_id = %s
+        """
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(query, (customer_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+
+            min_amount = float(row.get('expected_min_amount') or 0.0)
+            max_amount = float(row.get('expected_max_amount') or 0.0)
+            geo_scope = row.get('geographic_scope') or []
+            risk_indicators = row.get('risk_indicators') or []
+            timestamp = row.get('profile_timestamp')
+
+            return CustomerProfile(
+                customer_id=row['customer_id'],
+                business_type=row.get('business_type', 'Unknown'),
+                expected_monthly_volume=float(row.get('expected_monthly_volume') or 0.0),
+                expected_transaction_size=(min_amount, max_amount),
+                geographic_scope=geo_scope,
+                risk_indicators=risk_indicators,
+                kyc_document_source=row.get('kyc_document_source', ''),
+                extracted_at=timestamp.isoformat() if timestamp else datetime.now().isoformat(),
+                confidence_score=float(row.get('confidence_score') or 0.0)
+            )
     
     def save_customer_profile(self, profile: CustomerProfile):
         """Save extracted customer profile to database."""
-        self.connect()
+        conn = self.connect()
         query = """
             INSERT INTO customer_profiles (
                 customer_id, business_type, expected_monthly_volume,
@@ -159,7 +204,7 @@ class DatabaseConnector:
                 updated_at = NOW()
         """
         
-        with self.conn.cursor() as cursor:
+        with conn.cursor() as cursor:
             cursor.execute(query, (
                 profile.customer_id,
                 profile.business_type,
@@ -172,8 +217,90 @@ class DatabaseConnector:
                 profile.confidence_score,
                 profile.extracted_at
             ))
-            self.conn.commit()
+            conn.commit()
             logger.info(f" Saved customer profile for {profile.customer_id}")
+
+    def save_transaction_alert(self, alert: TransactionAlert):
+        """Persist unified transaction alerts for downstream Java services."""
+        conn = self.connect()
+        query = """
+            INSERT INTO transaction_alerts (
+                alert_id,
+                transaction_id,
+                customer_id,
+                alert_type,
+                severity,
+                deviation_details,
+                supporting_evidence,
+                recommended_action,
+                status
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (alert_id) DO UPDATE SET
+                severity = EXCLUDED.severity,
+                deviation_details = EXCLUDED.deviation_details,
+                supporting_evidence = EXCLUDED.supporting_evidence,
+                recommended_action = EXCLUDED.recommended_action,
+                status = EXCLUDED.status,
+                resolved_at = CASE WHEN EXCLUDED.status = 'CLOSED' THEN NOW() ELSE transaction_alerts.resolved_at END
+        """
+
+        with conn.cursor() as cursor:
+            cursor.execute(query, (
+                alert.alert_id,
+                alert.transaction_id,
+                alert.customer_id,
+                alert.alert_type,
+                alert.severity,
+                Json(alert.deviation_details or {}),
+                Json(alert.supporting_evidence or []),
+                alert.recommended_action,
+                'PENDING'
+            ))
+            conn.commit()
+            logger.info(f" Persisted transaction alert {alert.alert_id} -> transaction_alerts")
+
+    def save_document_evidence(self, alert_id: str, customer_id: str, transaction_id: str, evidence_list: List[str]):
+        """Persist supporting evidence snippets to document_evidence table."""
+        if not evidence_list:
+            return
+
+        conn = self.connect()
+        insert_query = """
+            INSERT INTO document_evidence (
+                alert_id,
+                transaction_id,
+                customer_id,
+                document_type,
+                excerpt,
+                relevance_score
+            ) VALUES (%s, %s, %s, %s, %s, %s)
+        """
+
+        def _parse_score(snippet: str) -> Optional[float]:
+            if not snippet.startswith("[Score:"):
+                return None
+            try:
+                prefix = snippet.split(']')[0]
+                score_text = prefix.split(':')[1].strip()
+                return float(score_text)
+            except (ValueError, IndexError):
+                return None
+
+        with conn.cursor() as cursor:
+            for excerpt in evidence_list:
+                cursor.execute(
+                    insert_query,
+                    (
+                        alert_id,
+                        transaction_id,
+                        customer_id,
+                        'RAG_SNIPPET',
+                        excerpt,
+                        _parse_score(excerpt)
+                    )
+                )
+            conn.commit()
+            logger.info(f" Stored {len(evidence_list)} evidence snippets for alert {alert_id}")
 
 
 class DocumentIntelligenceEngine:
@@ -368,7 +495,7 @@ class UnifiedFinancialIntelligence:
     5. Regulatory reporting (LLM synthesis)
     """
     
-    def __init__(self, db_connection_string: str = None):
+    def __init__(self, db_connection_string: Optional[str] = None):
         self.db = DatabaseConnector(db_connection_string)
         self.doc_engine = DocumentIntelligenceEngine()
         logger.info(" Unified Financial Intelligence System initialized")
@@ -420,24 +547,26 @@ class UnifiedFinancialIntelligence:
         logger.info(f" MONITORING TRANSACTION: {transaction['transaction_id']}")
         logger.info(f"{'='*70}\n")
         
-        # Get customer profile and statistics
-        # TODO: In production, query customer_profiles table
+        # Shared feature store lookup
         stats = self.db.get_customer_statistics(customer_id)
+        profile = self.db.get_customer_profile(customer_id)
+        if not profile:
+            logger.info("  No stored profile found for customer — falling back to statistics only")
         
-        if not stats or stats.get('total_transactions', 0) == 0:
-            logger.warning(f"  No transaction history for customer {customer_id}")
-            return None
+        alert_candidate: Optional[TransactionAlert] = None
         
-        # Detect anomalies (mimics Scala FraudAnalyzer logic)
-        alerts = []
+        if profile:
+            alert_candidate = self._evaluate_profile_deviation(transaction, profile)
+            if alert_candidate:
+                logger.warning(f"  PROFILE deviation detected for {customer_id}")
         
         # Amount anomaly (statistical deviation)
-        avg_amount = stats.get('avg_amount', 0)
-        std_amount = stats.get('std_amount', 1)
-        z_score = abs((amount - avg_amount) / std_amount) if std_amount > 0 else 0
+        avg_amount = stats.get('avg_amount', 0) if stats else 0
+        std_amount = stats.get('std_amount', 0) if stats else 0
+        z_score = abs((amount - avg_amount) / std_amount) if std_amount and std_amount > 0 else 0
         
-        if z_score > 3:  # 3 standard deviations
-            alert = TransactionAlert(
+        if not alert_candidate and z_score > 3:
+            alert_candidate = TransactionAlert(
                 alert_id=f"ALERT-{datetime.now().strftime('%Y%m%d%H%M%S')}",
                 transaction_id=transaction['transaction_id'],
                 customer_id=customer_id,
@@ -449,29 +578,88 @@ class UnifiedFinancialIntelligence:
                     'z_score': z_score,
                     'typical_range': f"${avg_amount - 2*std_amount:.2f} - ${avg_amount + 2*std_amount:.2f}"
                 },
-                supporting_evidence=[],  # Will be filled below
+                supporting_evidence=[],
                 recommended_action="MANUAL_REVIEW" if z_score > 4 else "FLAG_FOR_MONITORING",
                 created_at=datetime.now().isoformat()
             )
-            
-            # Search for supporting evidence in documents
+            logger.warning(f"  Statistical ALERT triggered (z-score={z_score:.2f})")
+        
+        if alert_candidate:
             evidence = await self.doc_engine.find_supporting_evidence(
                 customer_id,
-                "amount anomaly",
-                f"transaction ${amount:,.2f} customer average ${avg_amount:,.2f}"
+                alert_candidate.alert_type,
+                json.dumps(alert_candidate.deviation_details)
             )
-            alert.supporting_evidence = evidence
+            alert_candidate.supporting_evidence = evidence
             
-            logger.warning(f"  ALERT: {alert.alert_type} - Z-score: {z_score:.2f}")
-            logger.info(f"   Transaction: ${amount:,.2f}")
-            logger.info(f"   Customer avg: ${avg_amount:,.2f} ± ${std_amount:,.2f}")
-            logger.info(f"   Evidence documents: {len(evidence)}")
+            self.db.save_transaction_alert(alert_candidate)
+            self.db.save_document_evidence(
+                alert_candidate.alert_id,
+                alert_candidate.customer_id,
+                alert_candidate.transaction_id,
+                evidence
+            )
             
-            return alert
+            logger.info(f"   Persisted alert {alert_candidate.alert_id} with {len(evidence)} evidence snippets")
+            return alert_candidate
         
         logger.info(f" Transaction approved - within normal range")
         logger.info(f"   Amount: ${amount:,.2f} (Z-score: {z_score:.2f})")
         return None
+
+    def _evaluate_profile_deviation(self, transaction: Dict, profile: CustomerProfile) -> Optional[TransactionAlert]:
+        """Compare transaction attributes against stored profile to flag mismatches."""
+        amount = transaction['amount']
+        min_expected, max_expected = profile.expected_transaction_size
+        deviations: Dict[str, Any] = {
+            'profile_business_type': profile.business_type,
+            'profile_confidence': profile.confidence_score
+        }
+        severity: Optional[str] = None
+        
+        if max_expected and max_expected > 0 and amount > max_expected * 1.5:
+            deviations['amount_vs_profile'] = {
+                'amount': amount,
+                'expected_max': max_expected,
+                'breach_factor': round(amount / max_expected, 2)
+            }
+            severity = 'CRITICAL' if amount > max_expected * 2 else 'HIGH'
+        elif min_expected and min_expected > 0 and amount < max(1.0, min_expected * 0.5):
+            deviations['amount_vs_profile'] = {
+                'amount': amount,
+                'expected_min': min_expected
+            }
+            severity = 'MEDIUM'
+        
+        location = transaction.get('location')
+        if location and profile.geographic_scope:
+            normalized_scope = [scope.lower() for scope in profile.geographic_scope]
+            loc_lower = location.lower()
+            if loc_lower not in normalized_scope and not any(loc_lower in scope for scope in normalized_scope):
+                deviations['geography_mismatch'] = {
+                    'transaction_location': location,
+                    'expected_scope': profile.geographic_scope
+                }
+                severity = severity or 'MEDIUM'
+        
+        if len(deviations.keys()) <= 2:  # Only metadata populated
+            return None
+        
+        recommended_action = 'BLOCK_TRANSACTION' if severity == 'CRITICAL' else 'MANUAL_REVIEW'
+        if severity == 'MEDIUM':
+            recommended_action = 'FLAG_FOR_MONITORING'
+        
+        return TransactionAlert(
+            alert_id=f"ALERT-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            transaction_id=transaction['transaction_id'],
+            customer_id=transaction['customer_id'],
+            alert_type="PROFILE_DEVIATION",
+            severity=severity or 'MEDIUM',
+            deviation_details=deviations,
+            supporting_evidence=[],
+            recommended_action=recommended_action,
+            created_at=datetime.now().isoformat()
+        )
     
     async def generate_compliance_report(self, customer_id: str, days: int = 30) -> str:
         """

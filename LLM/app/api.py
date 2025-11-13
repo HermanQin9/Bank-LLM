@@ -12,6 +12,11 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from src.document_parser import PDFParser, TextPreprocessor
 from src.llm_engine import GeminiClient, PromptTemplates
+from src.llm_engine.langgraph_agent import (
+    DocumentProcessingAgent,
+    MultiAgentCollaboration,
+    LANGGRAPH_AVAILABLE,
+)
 from src.rag_system.gemini_rag_pipeline import GeminiRAGPipeline
 
 # Initialize FastAPI app
@@ -35,6 +40,32 @@ client = GeminiClient()
 rag_pipeline = GeminiRAGPipeline()
 pdf_parser = PDFParser()
 preprocessor = TextPreprocessor()
+
+# Agent cache so we only pay LangGraph init cost once per provider
+_document_agent_cache: Dict[str, DocumentProcessingAgent] = {}
+_multi_agent_cache: Dict[str, MultiAgentCollaboration] = {}
+
+
+def _get_document_agent(provider: str = "auto") -> DocumentProcessingAgent:
+    if not LANGGRAPH_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="LangGraph is not installed. pip install langgraph to enable workflows.",
+        )
+    if provider not in _document_agent_cache:
+        _document_agent_cache[provider] = DocumentProcessingAgent(llm_provider=provider)
+    return _document_agent_cache[provider]
+
+
+def _get_multi_agent(provider: str = "auto") -> MultiAgentCollaboration:
+    if not LANGGRAPH_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="LangGraph is not installed. pip install langgraph to enable workflows.",
+        )
+    if provider not in _multi_agent_cache:
+        _multi_agent_cache[provider] = MultiAgentCollaboration(llm_provider=provider)
+    return _multi_agent_cache[provider]
 
 
 # Request/Response models
@@ -90,6 +121,33 @@ class QueryResponse(BaseModel):
     tokens_used: int
 
 
+class DocumentWorkflowRequest(BaseModel):
+    document_text: str
+    llm_provider: str = "auto"
+
+
+class DocumentWorkflowResponse(BaseModel):
+    document_type: str
+    extracted_data: Dict[str, Any]
+    analysis: Optional[str]
+    validation: Dict[str, Any]
+    workflow_messages: List[str]
+    status: str
+
+
+class MultiAgentRequest(BaseModel):
+    document_text: str
+    fields: Optional[List[str]] = None
+    llm_provider: str = "auto"
+
+
+class MultiAgentResponse(BaseModel):
+    extraction: str
+    analysis: str
+    validation: Dict[str, Any]
+    agents_used: List[str]
+
+
 # API endpoints
 @app.get("/")
 def read_root():
@@ -103,6 +161,8 @@ def read_root():
             "entities": "/entities",
             "rag_index": "/rag/index",
             "rag_query": "/rag/query",
+            "document_workflow": "/workflows/document",
+            "multi_agent": "/workflows/multi-agent",
             "health": "/health"
         }
     }
@@ -111,7 +171,12 @@ def read_root():
 @app.get("/health")
 def health_check():
     """Health check endpoint."""
-    return {"status": "healthy", "model": client.model_name}
+    return {
+        "status": "healthy",
+        "model": client.model_name,
+        "langgraph_available": LANGGRAPH_AVAILABLE,
+        "workflows": [key for key in ["document", "multi_agent"] if LANGGRAPH_AVAILABLE],
+    }
 
 
 @app.post("/classify", response_model=ClassificationResponse)
@@ -219,6 +284,38 @@ def get_rag_stats():
     try:
         stats = rag_pipeline.get_stats()
         return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/workflows/document", response_model=DocumentWorkflowResponse)
+def run_document_workflow(request: DocumentWorkflowRequest):
+    """Execute LangGraph-powered document workflow."""
+    try:
+        agent = _get_document_agent(request.llm_provider)
+        result = agent.process_document(request.document_text)
+        return DocumentWorkflowResponse(**result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/workflows/multi-agent", response_model=MultiAgentResponse)
+def run_multi_agent_workflow(request: MultiAgentRequest):
+    """Execute collaborative multi-agent extraction/analysis workflow."""
+    try:
+        agent = _get_multi_agent(request.llm_provider)
+        fields = request.fields or [
+            "customer_id",
+            "transaction_amount",
+            "risk_factors",
+            "recommended_action",
+        ]
+        result = agent.collaborative_processing(request.document_text, fields)
+        return MultiAgentResponse(**result)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

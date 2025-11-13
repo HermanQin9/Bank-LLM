@@ -30,6 +30,7 @@
         <commons.csv.version>1.10.0</commons.csv.version>
         <commons.math.version>3.6.1</commons.math.version>
         <guava.version>33.0.0-jre</guava.version>
+        <kafka.clients.version>3.7.0</kafka.clients.version>
         <lombok.version>1.18.30</lombok.version>
         <slf4j.version>2.0.9</slf4j.version>
         <logback.version>1.4.14</logback.version>
@@ -127,6 +128,13 @@
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
             <version>${guava.version}</version>
+        </dependency>
+
+        <!-- Apache Kafka Client -->
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-clients</artifactId>
+            <version>${kafka.clients.version}</version>
         </dependency>
 
         <!-- Lombok (Reduce Boilerplate Code) -->

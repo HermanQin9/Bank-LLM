@@ -15,7 +15,7 @@ from typing import Dict, List, Optional
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -43,41 +43,21 @@ DB_CONFIG = {
 
 # Request models
 class TransactionAnalysisRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    transaction_id: str = Field(
-        ..., validation_alias=AliasChoices("transaction_id", "transactionId")
-    )
-    customer_id: str = Field(
-        ..., validation_alias=AliasChoices("customer_id", "customerId")
-    )
+    transaction_id: str
+    customer_id: str
     amount: float
-    merchant_name: str = Field(
-        ..., validation_alias=AliasChoices("merchant_name", "merchantName")
-    )
+    merchant_name: str
 
 
 class DocumentSearchRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    customer_id: str = Field(
-        ..., validation_alias=AliasChoices("customer_id", "customerId")
-    )
+    customer_id: str
     query: str
-    top_k: int = Field(
-        5, validation_alias=AliasChoices("top_k", "topK")
-    )
+    top_k: int = 5
 
 
 class ReportGenerationRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    customer_id: str = Field(
-        ..., validation_alias=AliasChoices("customer_id", "customerId")
-    )
-    report_type: str = Field(
-        ..., validation_alias=AliasChoices("report_type", "reportType")
-    )  # SAR, CTR, CDD
+    customer_id: str
+    report_type: str  # SAR, CTR, CDD
 
 
 def get_db_connection():
@@ -215,9 +195,11 @@ Format response as JSON:
                 'key_risk_factors': []
             }
         
-        # Add supporting documents to response
+        # Add complete context to response
+        analysis['transaction_id'] = request.transaction_id
         analysis['supporting_documents'] = supporting_docs
-        analysis['profile_available'] = profile is not None
+        analysis['profile'] = profile
+        analysis['deviation_from_average'] = deviation
         analysis['history_count'] = len(history)
         
         return analysis

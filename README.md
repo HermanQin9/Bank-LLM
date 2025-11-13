@@ -184,6 +184,7 @@ Automated Compliance Report (Multi-Agent System)
   - OCR for scanned documents (Tesseract/EasyOCR)
   - Structured information extraction
   - Multi-document reasoning
+  - LangGraph-powered FastAPI workflows (`/workflows/document`, `/workflows/multi-agent`) for multi-step extraction/analysis
 
 ### 4. **RAG System** (Retrieval-Augmented Generation)
 - **Gemini Embeddings**: 768-dimensional semantic vectors
@@ -209,6 +210,18 @@ Automated Compliance Report (Multi-Agent System)
 - **Monitoring**: Comprehensive logging and metrics
 - **Testing**: 30+ automated tests, 85%+ coverage
 - **CI/CD**: GitHub Actions pipeline
+
+### 7. **Real-Time Streaming Bridge** (Kafka)
+- **Java Publisher**: `TransactionKafkaPublisher` emits every alert to `fraud.alerts`
+- **Python Consumer**: `LLM/src/streaming/transaction_stream_consumer.py` enriches alerts with RAG + LangGraph, upserts `transaction_alerts`, and stores `document_evidence` + recommended actions so dashboards read exactly what streaming produced
+- **Backpressure Ready**: Idempotent producers, consumer groups, manual commits
+- **Single Source of Truth**: Kafka events reference PostgreSQL IDs so state stays consistent across languages
+
+### 8. **Shared Feature Store & Alert Sync**
+- **Bi-Directional Profiles**: `core/unified_financial_intelligence.py` now reads/writes `customer_profiles`, letting Scala/Java rules consume LLM-derived expectations instantly
+- **Unified Alerts Table**: Python monitoring persists enriched findings to `transaction_alerts` with JSON deviation details + evidence, so Java dashboards ingest the same record set
+- **Evidence Depot**: Every alert automatically stores snippets inside `document_evidence`, which Kafka consumers, LangGraph agents, and Java UI can cross-reference without extra API calls
+- **Failover Friendly**: If no profile is stored yet, the monitor gracefully falls back to statistical checks, ensuring the shared tables never block transaction flow
 
 ---
 
@@ -287,10 +300,35 @@ cd LLM
 python app/api.py  # FastAPI server on port 8000
 ```
 
+**Terminal 3: Java Alert REST API**
+```bash
+cd BankFraudTest
+set ALERT_API_PORT=8085  # optional override
+java -cp target/banking-platform-migration-1.0.0.jar com.bankfraud.api.TransactionAlertRestServer
+```
+- `GET /api/alerts?limit=50` returns the most recent upserted `transaction_alerts` rows plus evidence counts
+- `GET /api/alerts/{alert_id}` returns the full JSON payload, including parsed `deviation_details` and the top supporting document excerpts
+
 **Terminal 3: Dashboard**
 ```bash
 cd LLM
 streamlit run app/dashboard.py  # UI on port 8501
+```
+
+**Terminal 4: Kafka Streaming Bridge**
+```bash
+# Start consumer to sync Java alerts into LLM workflows
+cd LLM
+export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+export POSTGRES_HOST=localhost
+python -m src.streaming.transaction_stream_consumer
+```
+
+**Terminal 5: Unified Intelligence Feature Store**
+```bash
+# Run end-to-end profile extraction + monitoring, persisting into shared tables
+cd core
+python unified_financial_intelligence.py
 ```
 
 ---
@@ -352,17 +390,17 @@ from src.llm_engine.universal_client import UniversalLLMClient
 # 1. Query high-risk transactions from PostgreSQL
 conn = psycopg2.connect(database="frauddb", user="postgres")
 cursor = conn.execute("""
-    SELECT transaction_id, amount, merchant_name, fraud_score
-    FROM fraud_alerts 
-    WHERE risk_level = 'HIGH' AND investigation_status = 'PENDING'
-    ORDER BY fraud_score DESC
-    LIMIT 10
+  SELECT transaction_id, amount, merchant_name, severity, alert_type
+  FROM transaction_alerts 
+  WHERE severity IN ('HIGH', 'CRITICAL') AND status = 'PENDING'
+  ORDER BY created_at DESC
+  LIMIT 10
 """)
 
 # 2. Generate investigation summary with LLM
 llm = UniversalLLMClient()
 for row in cursor.fetchall():
-    tx_id, amount, merchant, score = row
+  tx_id, amount, merchant, severity, alert_type = row
     
     # 3. Fetch related compliance documents
     related_docs = rag.semantic_search_only(
@@ -377,7 +415,8 @@ for row in cursor.fetchall():
     - ID: {tx_id}
     - Amount: ${amount}
     - Merchant: {merchant}
-    - Fraud Score: {score}%
+    - Severity: {severity}
+    - Alert Type: {alert_type}
     
     Related Documents:
     {context}
@@ -549,6 +588,10 @@ mvn jacoco:report  # Coverage report
 cd LLM
 pytest tests/ -v --cov=src
 
+# Transaction-alert persistence tests (core package)
+cd core
+pytest tests/test_database_connector.py -v
+
 # Integration tests (requires Docker)
 pytest tests/test_system.py -v
 ```
@@ -557,6 +600,7 @@ pytest tests/test_system.py -v
 - Java: 17 unit tests + 5 integration tests
 - Scala: 8 functional tests
 - Python: 15+ tests covering LLM, RAG, document parsing
+- Core package: pytest verifies JSON serialization into `transaction_alerts` and rescoring logic for `document_evidence`
 - **Total**: 30+ tests, 85%+ coverage
 
 ---

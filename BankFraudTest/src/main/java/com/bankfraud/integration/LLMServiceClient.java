@@ -34,6 +34,9 @@ public class LLMServiceClient {
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
         this.objectMapper = new ObjectMapper();
+        // Configure to use snake_case for property names
+        this.objectMapper.setPropertyNamingStrategy(
+                com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE);
     }
     
     /**

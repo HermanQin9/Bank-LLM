@@ -36,20 +36,26 @@ This is **NOT** two separate projects connected by API calls. This is a **unifie
 ┌─────────────────────────────────────────────────────────────┐
 │  • transactions         (Java writes, Python reads)         │
 │  • customer_profiles    (Both read & write)                 │
-│  • fraud_alerts         (Python writes, Java reads)         │
+│  • transaction_alerts   (Python writes, Java reads via REST)│
 │  • document_evidence    (LLM writes, all read)              │
 │  • compliance_reports   (LLM generates, all use)            │
 └─────────────────────────────────────────────────────────────┘
         ↕                           ↕                    ↕
 ┌──────────────┐       ┌──────────────────┐      ┌────────────┐
-│ Java/Scala   │       │  Python ML       │      │    LLM     │
-│ BankFraudTest│       │  Deep Learning   │      │  Gemini    │
-│              │       │  PyTorch         │      │  Groq      │
+│ Java/Scala   │◄─────►│  Python ML       │◄────►│    LLM     │
+│ BankFraudTest│ Kafka │  Deep Learning   │      │  Gemini    │
+│              │ REST  │  PyTorch         │      │  Groq      │
 │ • ETL        │       │  • Training      │      │  • RAG     │
 │ • Rules      │       │  • Inference     │      │  • Extract │
 │ • Dashboard  │       │  • Features      │      │  • Reason  │
+│ • REST API   │       │  • Kafka Stream  │      │  • LangGrph│
 └──────────────┘       └──────────────────┘      └────────────┘
 ```
+
+**Integration Mechanisms:**
+- **Database**: Shared PostgreSQL with unified schema (Flyway migrations)
+- **Kafka**: Java Publisher → `fraud.alerts` → Python Consumer (enriches & upserts `transaction_alerts`)
+- **REST API**: Java `TransactionAlertRestServer` exposes alerts with evidence for dashboards/analytics
 
 ---
 
@@ -65,21 +71,17 @@ Python writes enriched profile → Java rules use it
 
 **Code:**
 ```python
-# unified-intelligence/unified_engine.py
-def enrich_customer_profile_from_documents(customer_id):
-    # Step 1: Get Java transaction statistics
-    profile = db.get_customer_profile(customer_id)
-    
-    # Step 2: Python RAG searches documents
-    docs = rag.search(f"customer {customer_id} kyc")
-    
-    # Step 3: LLM extracts structured data
-    extracted = llm.extract_profile(docs)
-    profile.occupation = extracted['occupation']
-    profile.risk_tolerance = extracted['risk_tolerance']
-    
-    # Step 4: Save back to DB (Java will read)
-    db.upsert_customer_profile(profile)
+# core/unified_financial_intelligence.py
+async def onboard_customer(self, customer_id: str, kyc_document_path: str) -> CustomerProfile:
+    logger.info("🆕 CUSTOMER ONBOARDING: %s", customer_id)
+
+    profile = await self.doc_engine.extract_customer_profile_from_kyc(
+        kyc_document_path,
+        customer_id,
+    )
+
+    self.db.save_customer_profile(profile)
+    return profile
 ```
 
 **Why This Matters:**
@@ -97,24 +99,47 @@ Weighted Ensemble → Alert Saved → Java Dashboard Displays
 
 **Code:**
 ```python
-def analyze_transaction_with_full_context(transaction):
-    # Each system contributes a score
-    rule_score = apply_scala_rules(transaction)      # 0.6
-    ml_score = pytorch_model.predict(transaction)    # 0.7
-    llm_score = llm.assess_risk(transaction, docs)   # 0.8
-    
-    # Ensemble: 40% rules, 30% ML, 30% LLM
-    final = rule_score * 0.4 + ml_score * 0.3 + llm_score * 0.3
-    
-    # Save alert (Java will display)
-    alert = FraudAlert(
-        rule_based_score=rule_score,
-        ml_model_score=ml_score,
-        llm_risk_score=llm_score,
-        final_risk_score=final,
-        detection_method="UNIFIED_INTELLIGENCE"
+# core/unified_financial_intelligence.py
+async def monitor_transaction(self, transaction: Dict) -> Optional[TransactionAlert]:
+    profile = self.db.get_customer_profile(transaction['customer_id'])
+    stats = self.db.get_customer_statistics(transaction['customer_id'])
+
+    alert = self._evaluate_profile_deviation(transaction, profile) if profile else None
+
+    avg_amount = stats.get('avg_amount', 0) if stats else 0
+    std_amount = stats.get('std_amount', 0) if stats else 0
+    z_score = abs((transaction['amount'] - avg_amount) / std_amount) if std_amount else 0
+
+    if not alert and z_score > 3:
+        alert = TransactionAlert(
+            alert_id=f"ALERT-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            transaction_id=transaction['transaction_id'],
+            customer_id=transaction['customer_id'],
+            alert_type="AMOUNT_ANOMALY",
+            severity="HIGH" if z_score > 4 else "MEDIUM",
+            deviation_details={
+                "transaction_amount": transaction['amount'],
+                "customer_avg": avg_amount,
+                "z_score": z_score,
+            },
+            supporting_evidence=[],
+            recommended_action="MANUAL_REVIEW",
+            created_at=datetime.now().isoformat(),
+        )
+
+    if not alert:
+        return None
+
+    evidence = await self.doc_engine.find_supporting_evidence(
+        alert.customer_id,
+        alert.alert_type,
+        json.dumps(alert.deviation_details),
     )
-    db.save_alert(alert)
+    alert.supporting_evidence = evidence
+
+    self.db.save_transaction_alert(alert)
+    self.db.save_document_evidence(alert.alert_id, alert.customer_id, alert.transaction_id, evidence)
+    return alert
 ```
 
 **Why This Matters:**
@@ -133,25 +158,17 @@ RAG (all docs) → LLM (narrative) → Save Report → Java Reviews
 
 **Code:**
 ```python
-def generate_investigation_report(alert_id):
-    # Step 1: Java DB query
-    suspicious_txns = db.get_suspicious_transactions(customer_id)
-    
-    # Step 2: Python aggregation
-    stats = calculate_stats(suspicious_txns)
-    
-    # Step 3: RAG document retrieval
-    all_docs = rag.search(f"customer investigation {customer_id}")
-    
-    # Step 4: LLM generates professional report
-    report_text = llm.generate_report(stats, all_docs)
-    
-    # Step 5: Save (Java compliance team reviews)
-    report = ComplianceReport(
-        transaction_count=len(suspicious_txns),
-        detailed_analysis=report_text
+# core/unified_financial_intelligence.py
+async def generate_compliance_report(self, customer_id: str, days: int = 30) -> str:
+    transactions = self.db.get_customer_transactions(customer_id, days)
+    alerts = [alert for alert in await self._scan_transactions(transactions) if alert]
+
+    report = await self.doc_engine.generate_sar_report(
+        customer_id,
+        transactions,
+        alerts,
     )
-    db.save_report(report)
+    return report
 ```
 
 **Why This Matters:**
@@ -163,98 +180,87 @@ def generate_investigation_report(alert_id):
 
 ## Shared Data Models
 
-All systems use identical schemas defined in `shared_models.py`:
+All systems now rely on the concrete dataclasses implemented in `core/unified_financial_intelligence.py`, which reflect the JSON columns stored in PostgreSQL:
 
 ```python
-class CustomerProfile(BaseModel):
+@dataclass
+class CustomerProfile:
     customer_id: str
-    
-    # Java source
-    avg_transaction_amount: float
-    transaction_count_30d: int
-    
-    # Python ML source
-    behavior_cluster: int
-    anomaly_score: float
-    
-    # LLM source
-    occupation: str
-    risk_tolerance: str
-    kyc_summary: str
-    
-    # Unified
-    unified_risk_score: float  # Combines all sources
+    business_type: str
+    expected_monthly_volume: float
+    expected_transaction_size: Tuple[float, float]
+    geographic_scope: List[str]
+    risk_indicators: List[str]
+    kyc_document_source: str
+    extracted_at: str
+    confidence_score: float
 ```
 
 ```python
-class FraudAlert(BaseModel):
+@dataclass
+class TransactionAlert:
     alert_id: str
     transaction_id: str
-    
-    # Multi-system scores
-    rule_based_score: float      # Scala rules
-    ml_model_score: float        # PyTorch
-    llm_risk_score: float        # Gemini/Groq
-    
-    # Ensemble
-    final_risk_score: float
-    detection_method: DetectionMethod.UNIFIED_INTELLIGENCE
-    
-    # Rich context
-    rules_triggered: List[str]   # From Scala
-    llm_reasoning: str           # From LLM
-    supporting_documents: List[DocumentEvidence]  # From RAG
+    customer_id: str
+    alert_type: str
+    severity: str
+    deviation_details: Dict[str, Any]
+    supporting_evidence: List[str]
+    recommended_action: str
+    created_at: str
 ```
+
+These models serialize directly into `customer_profiles`, `transaction_alerts`, and `document_evidence`, ensuring Java (rules/dashboard), Python (LLM/RAG), and Scala (statistics) all consume the same fields without translation layers.
 
 ---
 
 ## Database Schema (Bidirectional)
 
 ```sql
--- Populated by BOTH Java and Python
 CREATE TABLE customer_profiles (
     customer_id VARCHAR(50) PRIMARY KEY,
-    
-    -- Java computes these from transactions
-    avg_transaction_amount DECIMAL(15,2),
-    transaction_count_30d INTEGER,
-    
-    -- Python ML computes these
-    behavior_cluster INTEGER,
-    anomaly_score DECIMAL(5,4),
-    
-    -- LLM extracts these from documents
-    occupation VARCHAR(100),
-    risk_tolerance VARCHAR(20),
-    kyc_summary TEXT,
-    
-    -- Combined by unified system
-    unified_risk_score DECIMAL(5,4)
+    business_type VARCHAR(100) NOT NULL,
+    expected_monthly_volume DECIMAL(15, 2),
+    expected_min_amount DECIMAL(15, 2),
+    expected_max_amount DECIMAL(15, 2),
+    geographic_scope JSONB,
+    risk_indicators JSONB,
+    kyc_document_source TEXT,
+    confidence_score DECIMAL(3, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Python writes, Java reads
-CREATE TABLE fraud_alerts (
-    alert_id VARCHAR(100) PRIMARY KEY,
-    transaction_id VARCHAR(100),
-    
-    rule_based_score DECIMAL(5,4),
-    ml_model_score DECIMAL(5,4),
-    llm_risk_score DECIMAL(5,4),
-    final_risk_score DECIMAL(5,4),
-    
-    detection_method VARCHAR(50)  -- "UNIFIED_INTELLIGENCE"
+CREATE TABLE transaction_alerts (
+    alert_id VARCHAR(50) PRIMARY KEY,
+    transaction_id VARCHAR(50) NOT NULL,
+    customer_id VARCHAR(50) NOT NULL,
+    alert_type VARCHAR(50) NOT NULL,
+    severity VARCHAR(20) NOT NULL,
+    deviation_details JSONB,
+    supporting_evidence JSONB,
+    recommended_action VARCHAR(100),
+    status VARCHAR(20) DEFAULT 'PENDING',
+    reviewed_by VARCHAR(50),
+    review_notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    resolved_at TIMESTAMP
 );
 
--- LLM writes, all systems read
 CREATE TABLE document_evidence (
-    evidence_id VARCHAR(100) PRIMARY KEY,
-    transaction_id VARCHAR(100),
-    
-    extracted_text TEXT,
-    relevance_score DECIMAL(5,4),
-    llm_reasoning TEXT
+    evidence_id SERIAL PRIMARY KEY,
+    alert_id VARCHAR(50),
+    transaction_id VARCHAR(50),
+    customer_id VARCHAR(50) NOT NULL,
+    document_type VARCHAR(50),
+    document_path TEXT,
+    excerpt TEXT,
+    relevance_score DECIMAL(3, 2),
+    extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
+
+> Flyway migration `V5__Create_unified_integration_tables.sql` in `BankFraudTest/src/main/resources/db/migration/` also provisions `compliance_reports`, the `customer_risk_dashboard` view, and the `check_transaction_deviation` PL/pgSQL helper so both ecosystems consume identical materialized intelligence.
 
 ---
 
@@ -283,6 +289,19 @@ docker ps | grep postgres
 
 # Run unified demo
 python demo_unified_system.py
+
+# Optional: run the shared feature-store monitor (writes transaction_alerts/document_evidence)
+cd core
+python unified_financial_intelligence.py
+
+# Run Java REST API server to expose transaction_alerts
+cd BankFraudTest
+java -cp target/classes:target/lib/* com.bankfraud.api.TransactionAlertRestServer
+# Server runs on http://localhost:8085/api/alerts
+
+# Start Kafka consumer to sync alerts from Java events
+cd LLM/src/streaming
+python transaction_stream_consumer.py
 ```
 
 **Expected Output:**
@@ -311,6 +330,22 @@ STEP 3: Generate Compliance Report (Full Integration)
    • Documents cited: 5
 ```
 
+**REST API Endpoints (Java):**
+```bash
+# List recent alerts
+curl http://localhost:8085/api/alerts?limit=10
+
+# Get alert with document evidence
+curl http://localhost:8085/api/alerts/TEST-ALERT-001
+
+# Response includes:
+# - alertId, transactionId, customerId
+# - alertType, severity, recommendedAction
+# - deviationDetails (JSON with z_score, thresholds)
+# - supportingEvidence (string array)
+# - documentEvidence (full records with relevanceScore)
+```
+
 ### 3. Run Integration Tests
 
 ```bash
@@ -322,6 +357,12 @@ pytest test_integration.py -v -s
 # ✓ Java reads Python data
 # ✓ LLM enriches shared data
 # ✓ Systems cannot operate independently
+
+# Run core package pytest for transaction_alerts persistence
+cd ../core
+pytest tests/test_database_connector.py -v
+# ✓ Validates JSON serialization into transaction_alerts
+# ✓ Verifies evidence score parsing from RAG output
 ```
 
 ---
