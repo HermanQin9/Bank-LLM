@@ -81,14 +81,14 @@ public class IntegrationDemo {
         FraudAlert alert = fraudService.analyzeTransaction(suspiciousTx);
         
         logger.info("\n[RESULT] Fraud Alert Generated:");
-        logger.info("  Risk Score: {}", alert.getRiskScore());
+        logger.info("  Fraud Score: {}", alert.getFraudScore());
         logger.info("  Risk Level: {}", alert.getRiskLevel());
-        logger.info("  Detection Method: {}", alert.getDetectionMethod());
-        logger.info("  Analysis: {}", alert.getAnalysisDetails());
+        logger.info("  Alert Type: {}", alert.getAlertType());
+        logger.info("  Description: {}", alert.getDescription());
         
-        if (alert.getDocumentEvidenceCount() > 0) {
-            logger.info("  Supporting Documents: {} found", alert.getDocumentEvidenceCount());
-            logger.info("  Evidence: {}", alert.getEvidenceSummary());
+        if (alert.getRulesTriggered() != null && !alert.getRulesTriggered().isEmpty()) {
+            logger.info("  Rules Triggered: {} items", alert.getRulesTriggered().size());
+            logger.info("  Rules: {}", alert.getRulesTriggered());
         }
         
         // Demo Scenario 2: Search customer documents

@@ -45,6 +45,45 @@ public class TransactionRepository {
     private static final String DELETE_SQL = 
             "DELETE FROM transactions WHERE transaction_id = ?";
     
+    private static final String COUNT_RECENT_TRANSACTIONS_SQL = 
+            "SELECT COUNT(*) FROM transactions WHERE customer_id = ? " +
+            "AND transaction_date >= ?";
+    
+    /**
+     * Counts recent transactions for a customer within specified hours.
+     * Used for velocity checks in fraud detection.
+     * 
+     * @param customerId the customer ID
+     * @param hours number of hours to look back
+     * @return count of transactions in the time window
+     */
+    public long countRecentTransactions(String customerId, int hours) {
+        logger.debug("Counting transactions for customer {} in last {} hours", customerId, hours);
+        
+        LocalDateTime cutoffTime = LocalDateTime.now().minusHours(hours);
+        
+        try (Connection conn = DatabaseConfig.getDataSource().getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(COUNT_RECENT_TRANSACTIONS_SQL)) {
+            
+            pstmt.setString(1, customerId);
+            pstmt.setTimestamp(2, Timestamp.valueOf(cutoffTime));
+            
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    long count = rs.getLong(1);
+                    logger.debug("Found {} recent transactions for customer {}", count, customerId);
+                    return count;
+                }
+            }
+            
+        } catch (SQLException e) {
+            logger.error("Database error while counting recent transactions for customer {}: {}", 
+                    customerId, e.getMessage(), e);
+        }
+        
+        return 0;
+    }
+    
     /**
      * Inserts a new transaction into the database.
      * 

@@ -37,7 +37,7 @@ DB_CONFIG = {
     'port': 5432,
     'database': 'frauddb',
     'user': 'postgres',
-    'password': 'postgres123'
+    'password': 'postgres'
 }
 
 

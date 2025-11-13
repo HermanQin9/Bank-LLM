@@ -52,6 +52,7 @@ public class EnhancedFraudDetectionService {
         double finalScore = ruleBasedScore;
         String analysisDetails = "Rule-based detection";
         List<Map<String, Object>> documentEvidence = null;
+        String detectionMethod = "RULE_BASED";
         
         if (ruleBasedScore > 0.5 && llmEnabled) {
             try {
@@ -77,6 +78,8 @@ public class EnhancedFraudDetectionService {
                         llmAnalysis.get("reasoning")
                     );
                     
+                    detectionMethod = "HYBRID_RULE_LLM";
+                    
                     // Get document evidence if available
                     if (llmAnalysis.containsKey("supporting_documents")) {
                         documentEvidence = (List<Map<String, Object>>) llmAnalysis.get("supporting_documents");
@@ -95,28 +98,31 @@ public class EnhancedFraudDetectionService {
         }
         
         // Step 3: Create alert with combined analysis
-        FraudAlert alert = new FraudAlert();
-        alert.setTransactionId(transaction.getTransactionId());
-        alert.setCustomerId(transaction.getCustomerId());
-        alert.setRiskScore(finalScore);
-        alert.setRiskLevel(determineRiskLevel(finalScore));
-        alert.setAnalysisDetails(analysisDetails);
-        alert.setDetectionMethod(llmEnabled && finalScore != ruleBasedScore ? 
-                                "HYBRID_RULE_LLM" : "RULE_BASED");
+        FraudAlert alert = FraudAlert.builder()
+            .transactionId(transaction.getTransactionId())
+            .customerId(transaction.getCustomerId())
+            .fraudScore(new java.math.BigDecimal(finalScore * 100)) // Convert to 0-100 scale
+            .riskLevel(determineRiskLevel(finalScore))
+            .alertType(detectionMethod)
+            .description(analysisDetails)
+            .status(FraudAlert.AlertStatus.PENDING)
+            .createdAt(java.time.LocalDateTime.now())
+            .build();
         
+        // Add evidence to rules triggered (since we don't have separate evidence field)
         if (documentEvidence != null && !documentEvidence.isEmpty()) {
-            alert.setDocumentEvidenceCount(documentEvidence.size());
-            // Store evidence references in alert
-            StringBuilder evidenceSummary = new StringBuilder("Supporting documents: ");
+            List<String> rulesTriggered = new java.util.ArrayList<>();
+            rulesTriggered.add("RULE_BASED_DETECTION");
+            rulesTriggered.add("LLM_ENHANCED_ANALYSIS");
             for (Map<String, Object> doc : documentEvidence) {
-                evidenceSummary.append(doc.get("source")).append("; ");
+                rulesTriggered.add("DOCUMENT_EVIDENCE: " + doc.get("source"));
             }
-            alert.setEvidenceSummary(evidenceSummary.toString());
+            alert.setRulesTriggered(rulesTriggered);
         }
         
         logger.info("Fraud analysis complete for {}: score={}, level={}, method={}", 
                    transaction.getTransactionId(), finalScore, alert.getRiskLevel(), 
-                   alert.getDetectionMethod());
+                   alert.getAlertType());
         
         return alert;
     }
@@ -218,11 +224,11 @@ public class EnhancedFraudDetectionService {
         return Math.min(score, 1.0); // Cap at 1.0
     }
     
-    private String determineRiskLevel(double score) {
-        if (score >= 0.8) return "CRITICAL";
-        if (score >= 0.6) return "HIGH";
-        if (score >= 0.4) return "MEDIUM";
-        return "LOW";
+    private FraudAlert.RiskLevel determineRiskLevel(double score) {
+        if (score >= 0.8) return FraudAlert.RiskLevel.CRITICAL;
+        if (score >= 0.6) return FraudAlert.RiskLevel.HIGH;
+        if (score >= 0.4) return FraudAlert.RiskLevel.MEDIUM;
+        return FraudAlert.RiskLevel.LOW;
     }
     
     private boolean isUnusualMerchant(String merchantName) {
