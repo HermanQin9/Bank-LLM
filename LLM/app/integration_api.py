@@ -15,7 +15,7 @@ from typing import Dict, List, Optional
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, root_validator
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -42,11 +42,32 @@ DB_CONFIG = {
 
 
 # Request models
+def _coerce_aliases(values: Dict, alias_map: Dict[str, List[str]]) -> Dict:
+    """Allow camelCase payloads by copying alias values to snake_case keys."""
+    for canonical, aliases in alias_map.items():
+        if canonical in values:
+            continue
+        for alias in aliases:
+            if alias in values:
+                values[canonical] = values.pop(alias)
+                break
+    return values
+
+
 class TransactionAnalysisRequest(BaseModel):
     transaction_id: str
     customer_id: str
     amount: float
     merchant_name: str
+
+    @root_validator(pre=True)
+    def _support_aliases(cls, values: Dict) -> Dict:
+        alias_map = {
+            'transaction_id': ['transactionId'],
+            'customer_id': ['customerId'],
+            'merchant_name': ['merchantName'],
+        }
+        return _coerce_aliases(values, alias_map)
 
 
 class DocumentSearchRequest(BaseModel):
@@ -54,10 +75,26 @@ class DocumentSearchRequest(BaseModel):
     query: str
     top_k: int = 5
 
+    @root_validator(pre=True)
+    def _support_aliases(cls, values: Dict) -> Dict:
+        alias_map = {
+            'customer_id': ['customerId'],
+            'top_k': ['topK'],
+        }
+        return _coerce_aliases(values, alias_map)
+
 
 class ReportGenerationRequest(BaseModel):
     customer_id: str
     report_type: str  # SAR, CTR, CDD
+
+    @root_validator(pre=True)
+    def _support_aliases(cls, values: Dict) -> Dict:
+        alias_map = {
+            'customer_id': ['customerId'],
+            'report_type': ['reportType'],
+        }
+        return _coerce_aliases(values, alias_map)
 
 
 def get_db_connection():

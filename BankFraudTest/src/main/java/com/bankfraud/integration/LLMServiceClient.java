@@ -23,85 +23,82 @@ import java.util.Map;
  */
 public class LLMServiceClient {
     private static final Logger logger = LoggerFactory.getLogger(LLMServiceClient.class);
-    
+
     private final HttpClient httpClient;
     private final String pythonApiUrl;
     private final ObjectMapper objectMapper;
-    
+
     public LLMServiceClient(String pythonApiUrl) {
         this.pythonApiUrl = pythonApiUrl != null ? pythonApiUrl : "http://localhost:8000";
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
+                .version(HttpClient.Version.HTTP_1_1)
                 .build();
         this.objectMapper = new ObjectMapper();
-        // Configure to use snake_case for property names
-        this.objectMapper.setPropertyNamingStrategy(
-                com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE);
+        // Don't set naming strategy - we're using Map with snake_case keys directly
     }
-    
+
     /**
      * Analyze transaction using LLM + document context
      * 
      * @param transactionId Transaction to analyze
-     * @param customerId Customer ID
-     * @param amount Transaction amount
-     * @param merchantName Merchant name
+     * @param customerId    Customer ID
+     * @param amount        Transaction amount
+     * @param merchantName  Merchant name
      * @return Analysis result with risk score and evidence
      */
     public Map<String, Object> analyzeTransaction(
-            String transactionId, 
+            String transactionId,
             String customerId,
-            double amount, 
+            double amount,
             String merchantName) {
-        
+
         try {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("transaction_id", transactionId);
             requestBody.put("customer_id", customerId);
             requestBody.put("amount", amount);
             requestBody.put("merchant_name", merchantName);
-            
+
             String jsonBody = objectMapper.writeValueAsString(requestBody);
-            
+
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(pythonApiUrl + "/api/analyze-transaction"))
-                    .header("Content-Type", "application/json")
+                    .header("Content-Type", "application/json; charset=UTF-8")
                     .timeout(Duration.ofSeconds(30))
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody, java.nio.charset.StandardCharsets.UTF_8))
                     .build();
-            
+
             HttpResponse<String> response = httpClient.send(
-                    request, 
-                    HttpResponse.BodyHandlers.ofString()
-            );
-            
+                    request,
+                    HttpResponse.BodyHandlers.ofString());
+
             if (response.statusCode() == 200) {
                 Map<String, Object> result = objectMapper.readValue(
-                        response.body(), 
-                        Map.class
-                );
-                logger.info("LLM analysis completed for transaction {}: risk_score={}", 
+                        response.body(),
+                        Map.class);
+                logger.info("LLM analysis completed for transaction {}: risk_score={}",
                         transactionId, result.get("risk_score"));
                 return result;
             } else {
-                logger.error("LLM service returned error: {} - {}", 
+                logger.error("LLM service returned error: {} - {}",
                         response.statusCode(), response.body());
                 return createErrorResponse("LLM service error: " + response.statusCode());
             }
-            
+
         } catch (Exception e) {
             logger.error("Failed to call LLM service for transaction " + transactionId, e);
             return createErrorResponse("Exception: " + e.getMessage());
         }
     }
-    
+
     /**
      * Search documents for evidence related to customer/transaction
      * Uses RAG (Retrieval-Augmented Generation) system
      * 
      * @param customerId Customer ID
-     * @param query Search query
-     * @param topK Number of documents to retrieve
+     * @param query      Search query
+     * @param topK       Number of documents to retrieve
      * @return List of relevant document excerpts
      */
     public Map<String, Object> searchDocuments(String customerId, String query, int topK) {
@@ -110,35 +107,34 @@ public class LLMServiceClient {
             requestBody.put("customer_id", customerId);
             requestBody.put("query", query);
             requestBody.put("top_k", topK);
-            
+
             String jsonBody = objectMapper.writeValueAsString(requestBody);
-            
+
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(pythonApiUrl + "/api/search-documents"))
-                    .header("Content-Type", "application/json")
+                    .header("Content-Type", "application/json; charset=UTF-8")
                     .timeout(Duration.ofSeconds(20))
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody, java.nio.charset.StandardCharsets.UTF_8))
                     .build();
-            
+
             HttpResponse<String> response = httpClient.send(
-                    request, 
-                    HttpResponse.BodyHandlers.ofString()
-            );
-            
+                    request,
+                    HttpResponse.BodyHandlers.ofString());
+
             if (response.statusCode() == 200) {
                 return objectMapper.readValue(response.body(), Map.class);
             } else {
-                logger.error("Document search failed: {} - {}", 
+                logger.error("Document search failed: {} - {}",
                         response.statusCode(), response.body());
                 return createErrorResponse("Search failed: " + response.statusCode());
             }
-            
+
         } catch (Exception e) {
             logger.error("Failed to search documents for customer " + customerId, e);
             return createErrorResponse("Exception: " + e.getMessage());
         }
     }
-    
+
     /**
      * Generate compliance report using LLM
      * Combines transaction data (from DB) with document analysis
@@ -152,36 +148,35 @@ public class LLMServiceClient {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("customer_id", customerId);
             requestBody.put("report_type", reportType);
-            
+
             String jsonBody = objectMapper.writeValueAsString(requestBody);
-            
+
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(pythonApiUrl + "/api/generate-report"))
-                    .header("Content-Type", "application/json")
+                    .header("Content-Type", "application/json; charset=UTF-8")
                     .timeout(Duration.ofSeconds(60))
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody, java.nio.charset.StandardCharsets.UTF_8))
                     .build();
-            
+
             HttpResponse<String> response = httpClient.send(
-                    request, 
-                    HttpResponse.BodyHandlers.ofString()
-            );
-            
+                    request,
+                    HttpResponse.BodyHandlers.ofString());
+
             if (response.statusCode() == 200) {
                 logger.info("Compliance report generated for customer {}", customerId);
                 return objectMapper.readValue(response.body(), Map.class);
             } else {
-                logger.error("Report generation failed: {} - {}", 
+                logger.error("Report generation failed: {} - {}",
                         response.statusCode(), response.body());
                 return createErrorResponse("Report generation failed: " + response.statusCode());
             }
-            
+
         } catch (Exception e) {
             logger.error("Failed to generate report for customer " + customerId, e);
             return createErrorResponse("Exception: " + e.getMessage());
         }
     }
-    
+
     /**
      * Health check - verify Python service is available
      */
@@ -192,19 +187,18 @@ public class LLMServiceClient {
                     .timeout(Duration.ofSeconds(5))
                     .GET()
                     .build();
-            
+
             HttpResponse<String> response = httpClient.send(
-                    request, 
-                    HttpResponse.BodyHandlers.ofString()
-            );
-            
+                    request,
+                    HttpResponse.BodyHandlers.ofString());
+
             return response.statusCode() == 200;
         } catch (Exception e) {
             logger.warn("LLM service health check failed: {}", e.getMessage());
             return false;
         }
     }
-    
+
     private Map<String, Object> createErrorResponse(String message) {
         Map<String, Object> error = new HashMap<>();
         error.put("error", true);
