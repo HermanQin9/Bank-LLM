@@ -110,11 +110,18 @@ def get_transaction_history(customer_id: str, limit: int = 10) -> List[Dict]:
         return []
 
 
+@app.post("/analyze/transaction")
 @app.post("/api/analyze-transaction")
 async def analyze_transaction(request: TransactionAnalysisRequest):
     """
-    Analyze transaction using LLM with document context
-    Called by Java fraud detection service
+    Real-time transaction analysis endpoint (Deep Integration)
+    Called by Java PythonBridge for instant ML+LLM fraud detection
+    
+    This endpoint demonstrates true integration:
+    - Java pushes transaction immediately after creation
+    - Python reads shared database for context
+    - LLM analyzes with full history and documents
+    - Results flow back to Java for real-time decision
     """
     try:
         # Get customer profile from database
@@ -199,6 +206,8 @@ Format response as JSON:
         analysis['supporting_documents'] = supporting_docs
         analysis['profile_available'] = profile is not None
         analysis['history_count'] = len(history)
+        analysis['customer_id'] = request.customer_id
+        analysis['risk_level'] = 'HIGH' if analysis.get('risk_score', 0) > 0.7 else ('MEDIUM' if analysis.get('risk_score', 0) > 0.4 else 'LOW')
         
         return analysis
         
