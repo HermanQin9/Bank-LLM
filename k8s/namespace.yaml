@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: financial-platform
+  labels:
+    name: financial-platform
+    environment: production
+    app: fraud-detection
