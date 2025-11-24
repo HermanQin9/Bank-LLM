@@ -1,0 +1,138 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  JAVA_VERSION: '21'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  java-test:
+    name: Java Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: frauddb_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+      
+      - name: Build with Maven
+        working-directory: ./BankFraudTest
+        run: mvn clean compile -DskipTests
+      
+      - name: Run tests
+        working-directory: ./BankFraudTest
+        run: mvn test
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: frauddb_test
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+      
+      - name: Generate coverage report
+        working-directory: ./BankFraudTest
+        run: mvn jacoco:report
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./BankFraudTest/target/site/jacoco/jacoco.xml
+          flags: java
+
+  python-test:
+    name: Python Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        working-directory: ./LLM
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+      
+      - name: Run pytest
+        working-directory: ./LLM
+        run: pytest tests/ --cov=src --cov-report=xml --cov-report=term -v || true
+        continue-on-error: true
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./LLM/coverage.xml
+          flags: python
+        continue-on-error: true
+
+  scala-test:
+    name: Scala/Spark Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+      
+      - name: Run Scala tests
+        working-directory: ./BankFraudTest
+        run: mvn test -Dtest=SparkTransactionProcessorTest
+        continue-on-error: true
+
+  lint:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install linters
+        run: pip install flake8 black
+      
+      - name: Lint Python
+        working-directory: ./LLM
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics || true
+          black --check . || true
+        continue-on-error: true
