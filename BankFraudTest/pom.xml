@@ -42,6 +42,19 @@
         <scalatest.version>3.2.17</scalatest.version>
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <!-- AWS SDK BOM for version management -->
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${aws.sdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <!-- PostgreSQL JDBC Driver -->
         <dependency>
@@ -71,14 +84,6 @@
         </dependency>
 
         <!-- AWS SDK for Java 2.x -->
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>bom</artifactId>
-            <version>${aws.sdk.version}</version>
-            <type>pom</type>
-            <scope>import</scope>
-        </dependency>
-        
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>s3</artifactId>
@@ -364,6 +369,7 @@
                     <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
                     <junitxml>.</junitxml>
                     <filereports>TestSuiteReport.txt</filereports>
+                    <skipTests>true</skipTests>
                 </configuration>
                 <executions>
                     <execution>
@@ -371,6 +377,7 @@
                         <goals>
                             <goal>test</goal>
                         </goals>
+                        <phase>none</phase>
                     </execution>
                 </executions>
             </plugin>

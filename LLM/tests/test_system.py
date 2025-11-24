@@ -65,18 +65,6 @@ def test_gemini_client():
 def test_gemini_generation():
     """Test actual Gemini API call."""
     pytest.skip("Requires API key - skipping Gemini API tests")
-        
-        if response:
-            print("✓ Gemini API Call: OK")
-            print(f"  - Response received: {response[:50]}...")
-            return True
-        else:
-            print("✗ Gemini API Call: FAILED - No response")
-            return False
-    except Exception as e:
-        print(f"✗ Gemini API Call: FAILED - {e}")
-        print(f"  Note: Check API key and internet connection")
-        return False
 
 
 def test_rag_components():
