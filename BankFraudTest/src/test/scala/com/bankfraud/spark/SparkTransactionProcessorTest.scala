@@ -40,18 +40,16 @@ class SparkTransactionProcessorTest extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   def createTestTransactions(): DataFrame = {
-    import spark.implicits._
-    
     val now = Timestamp.valueOf(LocalDateTime.now())
     val oneHourAgo = Timestamp.valueOf(LocalDateTime.now().minusHours(1))
     
-    Seq(
+    spark.createDataFrame(Seq(
       ("TXN001", "CUST001", oneHourAgo, 1000.0, "USD", "Merchant A", "RETAIL", "PURCHASE", "US", "New York", true),
       ("TXN002", "CUST001", oneHourAgo, 2000.0, "USD", "Merchant B", "RETAIL", "PURCHASE", "US", "New York", true),
       ("TXN003", "CUST001", now, 8000.0, "USD", "Merchant C", "WIRE_TRANSFER", "WIRE", "CN", "Shanghai", true),
       ("TXN004", "CUST002", now, 500.0, "USD", "Merchant A", "RETAIL", "PURCHASE", "US", "Boston", false),
       ("TXN005", "CUST003", Timestamp.valueOf(LocalDateTime.now().withHour(3)), 15000.0, "USD", "Unknown", "ATM", "CASH", "RU", "Moscow", false)
-    ).toDF(
+    )).toDF(
       "transaction_id", "customer_id", "transaction_date", "amount", "currency",
       "merchant_name", "merchant_category", "transaction_type", "location_country",
       "location_city", "is_online"
