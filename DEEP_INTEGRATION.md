@@ -447,7 +447,7 @@ This integration demonstrates:
 1. **Add More ML Models**: Integrate additional PyTorch models for pattern detection
 2. **RAG Document Search**: Connect transaction analysis to document evidence
 3. **Multi-Agent Workflows**: LangGraph for complex investigation flows
-4. **Real-Time Streaming**: Apache Kafka for live transaction monitoring
+4. **🆕 COMPLETED: Apache Spark & EMR**: Distributed processing at scale (see [SPARK_EMR_INTEGRATION.md](SPARK_EMR_INTEGRATION.md))
 5. **Dashboard**: Streamlit UI showing real-time analysis results
 6. **Kubernetes Deployment**: Scale Java and Python services independently
 
